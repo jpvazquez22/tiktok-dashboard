@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TikTok Leaderboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0a0f;
+      --bg2:      #111118;
+      --bg3:      #1a1a24;
+      --border:   #2a2a3a;
+      --accent:   #fe2c55;
+      --accent2:  #25f4ee;
+      --text:     #e8e8f0;
+      --muted:    #888899;
+      --positive: #4ade80;
+      --radius:   12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .tiktok-logo {
+      font-size: 22px; font-weight: 900; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .topbar h1 { font-size: 16px; font-weight: 600; }
+    .topbar .muted { color: var(--muted); font-size: 13px; }
+    .btn {
+      padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: 13px; font-weight: 600; transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-ghost { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+
+    /* ── Tabs ── */
+    .tab-bar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 0;
+      padding: 0 28px;
+      overflow-x: auto;
+    }
+    .tab-item {
+      padding: 12px 20px; font-size: 13px; font-weight: 600;
+      color: var(--muted); text-decoration: none;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .tab-item:hover { color: var(--text); }
+    .tab-active { color: var(--text); border-bottom-color: var(--accent); }
+
+    /* ── Main ── */
+    .main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+
+    /* ── Header row ── */
+    .leaderboard-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .leaderboard-header h2 { font-size: 20px; font-weight: 800; }
+    .leaderboard-header .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Table card ── */
+    .table-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+    thead th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    thead th.sortable { cursor: pointer; user-select: none; }
+    thead th.sortable:hover { color: var(--accent2); }
+    thead th.sort-asc::after  { content: " ↑"; color: var(--accent2); }
+    thead th.sort-desc::after { content: " ↓"; color: var(--accent2); }
+
+    tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
+    tbody tr:hover { background: var(--bg3); }
+    tbody td { padding: 12px 14px; vertical-align: middle; }
+
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .account-cell { display: flex; align-items: center; gap: 10px; }
+    .rank-badge {
+      font-size: 18px; font-weight: 900; color: var(--muted); min-width: 24px; text-align: center;
+    }
+    .rank-1 { color: #fbbf24; }
+    .rank-2 { color: #94a3b8; }
+    .rank-3 { color: #cd7f32; }
+
+    .username-link { color: var(--accent2); text-decoration: none; font-weight: 600; }
+    .username-link:hover { text-decoration: underline; }
+
+    .followers-sub { font-size: 11px; color: var(--muted); }
+
+    .eng-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 11px; font-weight: 700;
+    }
+    .eng-high { background: rgba(74,222,128,0.15); color: #4ade80; }
+    .eng-med  { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+    .eng-low  { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+    /* metric color accents on hover */
+    .col-views    { color: #25f4ee; }
+    .col-likes    { color: #f59e0b; }
+    .col-comments { color: #8b5cf6; }
+    .col-shares   { color: #10b981; }
+    .col-saves    { color: #fe2c55; }
+    .col-eng      { color: #f97316; }
+
+    /* ── Sort buttons row ── */
+    .sort-pills {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;
+    }
+    .sort-pill {
+      padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border);
+      background: var(--bg3); color: var(--muted); font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    .sort-pill:hover { color: var(--text); border-color: #555; }
+    .sort-pill.active { background: rgba(37,244,238,0.12); border-color: #25f4ee; color: #25f4ee; }
+
+    @media (max-width: 600px) {
+      .main { padding: 16px; }
+      .topbar { padding: 12px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="tiktok-logo">TT</span>
+    <div>
+      <h1>Analytics Dashboard</h1>
+      <div class="muted">Leaderboard · {{ days_label }}</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <select onchange="location.href='/leaderboard?days='+this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:13px;cursor:pointer;">
+      {% for val, label in range_options.items() %}
+        <option value="{{ val }}" {% if val == days|string %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-ghost" onclick="location.reload()">↻ Refresh</button>
+  </div>
+</header>
+
+<nav class="tab-bar">
+  {% for u in all_usernames %}
+    <a href="/?user={{ u }}&days={{ days }}" class="tab-item">@{{ u }}</a>
+  {% endfor %}
+  <a href="/leaderboard?days={{ days }}" class="tab-item tab-active">🏆 Leaderboard</a>
+</nav>
+
+<main class="main">
+
+  <div class="leaderboard-header">
+    <div>
+      <h2>🏆 Account Leaderboard</h2>
+      <div class="sub">All {{ all_usernames | length }} accounts · {{ days_label }} · click any column to sort</div>
+    </div>
+  </div>
+
+  <!-- Quick-sort pills -->
+  <div class="sort-pills">
+    <button class="sort-pill" data-col="rank"            onclick="sortBy('rank')">🔢 Rank</button>
+    <button class="sort-pill" data-col="total_views"     onclick="sortBy('total_views')">👁 Views</button>
+    <button class="sort-pill" data-col="avg_views"       onclick="sortBy('avg_views')">📈 Avg Views</button>
+    <button class="sort-pill" data-col="total_likes"     onclick="sortBy('total_likes')">❤️ Likes</button>
+    <button class="sort-pill" data-col="total_comments"  onclick="sortBy('total_comments')">💬 Comments</button>
+    <button class="sort-pill" data-col="total_shares"    onclick="sortBy('total_shares')">🔁 Shares</button>
+    <button class="sort-pill" data-col="total_saves"     onclick="sortBy('total_saves')">💾 Saves</button>
+    <button class="sort-pill" data-col="avg_engagement_pct" onclick="sortBy('avg_engagement_pct')">📊 Eng%</button>
+    <button class="sort-pill" data-col="followers"       onclick="sortBy('followers')">👥 Followers</button>
+  </div>
+
+  <div class="table-card">
+    <table id="lb-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Account</th>
+          <th class="num sortable" data-col="total_videos">Videos</th>
+          <th class="num sortable" data-col="followers">Followers</th>
+          <th class="num sortable col-views"    data-col="total_views">👁 Views</th>
+          <th class="num sortable"              data-col="avg_views">Avg Views</th>
+          <th class="num sortable col-likes"    data-col="total_likes">❤️ Likes</th>
+          <th class="num sortable col-comments" data-col="total_comments">💬 Comments</th>
+          <th class="num sortable col-shares"   data-col="total_shares">🔁 Shares</th>
+          <th class="num sortable col-saves"    data-col="total_saves">💾 Saves</th>
+          <th class="num sortable col-eng"      data-col="avg_engagement_pct">📊 Eng%</th>
+        </tr>
+      </thead>
+      <tbody id="lb-tbody"></tbody>
+    </table>
+  </div>
+
+</main>
+
+<script>
+const ROWS = {{ rows | tojson }};
+
+function fmt(n) {
+  n = n || 0;
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return Number(n).toLocaleString();
+}
+
+function engBadge(pct) {
+  const cls = pct >= 5 ? 'eng-high' : pct >= 2 ? 'eng-med' : 'eng-low';
+  return `<span class="eng-badge ${cls}">${Number(pct).toFixed(2)}%</span>`;
+}
+
+let sortCol = 'total_views';
+let sortDir = 'desc';
+
+function renderTable(data) {
+  const tbody = document.getElementById('lb-tbody');
+  tbody.innerHTML = data.map((r, i) => {
+    const rankCls = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+    return `<tr>
+      <td><span class="rank-badge ${rankCls}">${i + 1}</span></td>
+      <td>
+        <div class="account-cell">
+          <div>
+            <div><a class="username-link" href="/?user=${r.username}&days={{ days }}" target="_blank">@${r.username}</a></div>
+            <div class="followers-sub">${fmt(r.followers)} followers</div>
+          </div>
+        </div>
+      </td>
+      <td class="num">${fmt(r.total_videos)}</td>
+      <td class="num">${fmt(r.followers)}</td>
+      <td class="num" style="color:#25f4ee;">${fmt(r.total_views)}</td>
+      <td class="num">${fmt(r.avg_views)}</td>
+      <td class="num" style="color:#f59e0b;">${fmt(r.total_likes)}</td>
+      <td class="num" style="color:#8b5cf6;">${fmt(r.total_comments)}</td>
+      <td class="num" style="color:#10b981;">${fmt(r.total_shares)}</td>
+      <td class="num" style="color:#fe2c55;">${fmt(r.total_saves)}</td>
+      <td class="num">${engBadge(r.avg_engagement_pct)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function sortBy(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    sortCol = col;
+    sortDir = 'desc';
+  }
+
+  // Update pills
+  document.querySelectorAll('.sort-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.col === sortCol);
+  });
+
+  // Update column headers
+  document.querySelectorAll('thead th.sortable').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === sortCol) th.classList.add('sort-' + sortDir);
+  });
+
+  const sorted = [...ROWS].sort((a, b) => {
+    let av = a[sortCol] ?? 0;
+    let bv = b[sortCol] ?? 0;
+    return sortDir === 'desc' ? bv - av : av - bv;
+  });
+
+  renderTable(sorted);
+}
+
+// Column header clicks
+document.querySelectorAll('thead th.sortable').forEach(th => {
+  th.addEventListener('click', () => sortBy(th.dataset.col));
+});
+
+// Initial render sorted by total_views desc
+sortBy('total_views');
+</script>
+
+</body>
+</html>

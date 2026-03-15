@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TikTok Analytics — @{{ username }}</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --bg2:       #111118;
+      --bg3:       #1a1a24;
+      --border:    #2a2a3a;
+      --accent:    #fe2c55;
+      --accent2:   #25f4ee;
+      --text:      #e8e8f0;
+      --muted:     #888899;
+      --positive:  #4ade80;
+      --negative:  #f87171;
+      --neutral:   #94a3b8;
+      --radius:    12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────── */
+    .topbar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+
+    .tiktok-logo {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .topbar h1 { font-size: 16px; font-weight: 600; }
+    .topbar .muted { color: var(--muted); font-size: 13px; }
+
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+
+    .btn {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-ghost { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+
+    .main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+
+    /* ── Profile Card ────────────────────────────────────────────── */
+    .profile-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--bg3);
+      object-fit: cover;
+      border: 2px solid var(--accent);
+      flex-shrink: 0;
+    }
+
+    .avatar-placeholder {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 900;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .profile-info h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .profile-info .bio { color: var(--muted); font-size: 13px; margin-bottom: 10px; max-width: 500px; }
+
+    .profile-stats { display: flex; gap: 24px; flex-wrap: wrap; }
+
+    .profile-stat { text-align: center; }
+    .profile-stat .val { font-size: 16px; font-weight: 700; }
+    .profile-stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── KPI Grid ────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+
+    .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); margin-bottom: 8px; }
+    .kpi-value { font-size: 26px; font-weight: 800; color: var(--text); }
+    .kpi-sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Charts Row ──────────────────────────────────────────────── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .chart-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .chart-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+
+    .chart-wrap { position: relative; }
+
+    /* ── Videos Table ────────────────────────────────────────────── */
+    .table-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+
+    .table-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 16px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+    thead th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s;
+    }
+
+    tbody tr:hover { background: var(--bg3); }
+
+    tbody td { padding: 10px 12px; vertical-align: middle; }
+
+    .td-desc {
+      max-width: 300px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .td-desc a { color: var(--accent2); text-decoration: none; }
+    .td-desc a:hover { text-decoration: underline; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-high   { background: rgba(74,222,128,0.15); color: var(--positive); }
+    .badge-med    { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+    .badge-low    { background: rgba(148,163,184,0.15); color: var(--neutral); }
+
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* ── Bottom Row ──────────────────────────────────────────────── */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    /* ── Top Videos ──────────────────────────────────────────────── */
+    .top-video-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .top-video-item:last-child { border-bottom: none; }
+
+    .rank {
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--muted);
+      min-width: 28px;
+    }
+    .rank-1 { color: #fbbf24; }
+    .rank-2 { color: #94a3b8; }
+    .rank-3 { color: #cd7f32; }
+
+    .top-video-desc { font-size: 13px; color: var(--text); margin-bottom: 4px; line-height: 1.3; }
+    .top-video-desc a { color: inherit; text-decoration: none; }
+    .top-video-desc a:hover { color: var(--accent2); }
+    .top-video-stats { font-size: 12px; color: var(--muted); }
+
+    /* ── Sync Log ────────────────────────────────────────────────── */
+    .sync-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 12px;
+    }
+    .sync-item:last-child { border-bottom: none; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sync-dot-success { background: var(--positive); }
+    .sync-dot-error   { background: var(--negative); }
+    .sync-meta { color: var(--muted); }
+
+    /* ── Empty State ─────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state h3 { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .empty-state p { font-size: 14px; margin-bottom: 20px; }
+
+    /* ── Toast ───────────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-size: 13px;
+      z-index: 999;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── Filter Bar ──────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+      align-items: center;
+    }
+
+    .filter-bar input[type="text"],
+    .filter-bar input[type="number"],
+    .filter-bar input[type="date"],
+    .filter-bar select {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 7px 12px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .filter-bar input[type="text"] { min-width: 200px; }
+    .filter-bar input[type="number"] { width: 120px; }
+    .filter-bar input[type="date"] { width: 140px; }
+
+    .filter-bar input:focus,
+    .filter-bar select:focus {
+      border-color: var(--accent2);
+    }
+
+    .filter-count {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    thead th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    thead th.sortable:hover { color: var(--accent2); }
+    thead th.sort-asc::after  { content: " ↑"; color: var(--accent2); }
+    thead th.sort-desc::after { content: " ↓"; color: var(--accent2); }
+
+    /* ── Account Tabs ────────────────────────────────────────────── */
+    .tab-bar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 0;
+      padding: 0 28px;
+    }
+
+    .tab-item {
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .tab-item:hover { color: var(--text); }
+
+    .tab-active {
+      color: var(--text);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Scatter Metric Buttons ──────────────────────────────────── */
+    .scatter-metric-btn {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .scatter-metric-btn:hover { color: var(--text); border-color: #555; }
+    .scatter-metric-btn.active-saves    { background: rgba(254,44,85,0.15);  border-color: #fe2c55; color: #fe2c55; }
+    .scatter-metric-btn.active-likes    { background: rgba(245,158,11,0.15); border-color: #f59e0b; color: #f59e0b; }
+    .scatter-metric-btn.active-comments { background: rgba(139,92,246,0.15); border-color: #8b5cf6; color: #8b5cf6; }
+    .scatter-metric-btn.active-shares   { background: rgba(16,185,129,0.15); border-color: #10b981; color: #10b981; }
+    .scatter-metric-btn.active-eng      { background: rgba(249,115,22,0.15); border-color: #f97316; color: #f97316; }
+
+    /* ── Responsive ──────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .charts-row { grid-template-columns: 1fr; }
+      .bottom-row { grid-template-columns: 1fr; }
+      .profile-stats { gap: 16px; }
+    }
+
+    @media (max-width: 600px) {
+      .main { padding: 16px; }
+      .topbar { padding: 12px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="tiktok-logo">TT</span>
+    <div>
+      <h1>Analytics Dashboard</h1>
+      <div class="muted">@{{ username }} · Last synced: <span id="last-updated">{{ last_updated[:16] if last_updated and last_updated != 'Never' else 'Never' }}</span></div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <select onchange="location.href='/?user={{ username }}&days='+this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:13px;cursor:pointer;">
+      {% for val, label in range_options.items() %}
+        <option value="{{ val }}" {% if val == days|string %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-ghost" onclick="location.reload()">↻ Refresh</button>
+    <button class="btn btn-primary" id="sync-btn" onclick="triggerSync()">⚡ Sync Now</button>
+  </div>
+</header>
+
+<!-- ── Account Tabs ────────────────────────────────────────────────────── -->
+<nav class="tab-bar">
+  {% for u in all_usernames %}
+    <a href="/?user={{ u }}&days={{ days }}" class="tab-item {% if u == username %}tab-active{% endif %}">@{{ u }}</a>
+  {% endfor %}
+  <a href="/leaderboard?days={{ days }}" class="tab-item">🏆 Leaderboard</a>
+</nav>
+
+<main class="main">
+
+{% if not has_data %}
+<!-- ── Empty State ─────────────────────────────────────────────────────── -->
+<div class="empty-state">
+  <div class="icon">📊</div>
+  <h3>No data yet</h3>
+  <p>Click <strong>Sync Now</strong> to pull your TikTok data from Apify.<br>
+  This usually takes 1–3 minutes on the first run.</p>
+  <button class="btn btn-primary" onclick="triggerSync()" style="font-size:15px;padding:12px 28px;">
+    ⚡ Pull Data Now
+  </button>
+</div>
+
+{% else %}
+
+<!-- ── Profile Card ────────────────────────────────────────────────────── -->
+<div class="profile-card">
+  {% if profile.avatar_url %}
+    <img class="avatar" src="{{ profile.avatar_url }}" alt="Avatar" onerror="this.style.display='none'" />
+  {% else %}
+    <div class="avatar-placeholder">{{ profile.display_name[0].upper() if profile.display_name else 'T' }}</div>
+  {% endif %}
+  <div class="profile-info">
+    <h2>{{ profile.display_name or ('@' + username) }}</h2>
+    {% if profile.bio %}<p class="bio">{{ profile.bio }}</p>{% endif %}
+    <div class="profile-stats">
+      <div class="profile-stat">
+        <div class="val">{{ "{:,}".format(profile.followers or 0) }}</div>
+        <div class="lbl">Followers</div>
+      </div>
+      <div class="profile-stat">
+        <div class="val">{{ "{:,}".format(profile.following or 0) }}</div>
+        <div class="lbl">Following</div>
+      </div>
+      <div class="profile-stat">
+        <div class="val">{{ "{:,}".format(profile.total_videos or 0) }}</div>
+        <div class="lbl">Videos</div>
+      </div>
+      <div class="profile-stat">
+        <div class="val">{{ format_num(profile.total_hearts or 0) }}</div>
+        <div class="lbl">Total Likes</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── KPI Cards ───────────────────────────────────────────────────────── -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Views</div>
+    <div class="kpi-value">{{ format_num(kpis.total_views or 0) }}</div>
+    <div class="kpi-sub">across {{ kpis.total_videos or 0 }} videos · {{ days_label }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Avg Views/Video</div>
+    <div class="kpi-value">{{ format_num(kpis.avg_views or 0) }}</div>
+    <div class="kpi-sub">{{ days_label }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Avg Engagement</div>
+    <div class="kpi-value">{{ kpis.avg_engagement_pct or 0 }}%</div>
+    <div class="kpi-sub">(likes+comments+shares)/views</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Likes</div>
+    <div class="kpi-value">{{ format_num(kpis.total_likes or 0) }}</div>
+    <div class="kpi-sub">{{ format_num(kpis.total_comments or 0) }} comments · {{ days_label }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Shares</div>
+    <div class="kpi-value">{{ format_num(kpis.total_shares or 0) }}</div>
+    <div class="kpi-sub">{{ days_label }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Audience Sentiment</div>
+    <div class="kpi-value">
+      {% set total_sent = (sentiment.positive or 0) + (sentiment.neutral or 0) + (sentiment.negative or 0) %}
+      {% if total_sent > 0 %}
+        {{ ((sentiment.positive or 0) / total_sent * 100) | round(0) | int }}%
+      {% else %}
+        —
+      {% endif %}
+    </div>
+    <div class="kpi-sub">positive comments</div>
+  </div>
+</div>
+
+<!-- ── Charts Row ──────────────────────────────────────────────────────── -->
+<div class="charts-row">
+  <div class="chart-card">
+    <h3>📈 Engagement Rate Trend <span style="color:var(--muted);font-weight:400;font-size:12px;">({{ days_label | lower }})</span></h3>
+    <div class="chart-wrap"><canvas id="engChart" height="120"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>💬 Comment Sentiment</h3>
+    {% set total_sent = (sentiment.positive or 0) + (sentiment.neutral or 0) + (sentiment.negative or 0) %}
+    {% if total_sent > 0 %}
+      <div class="chart-wrap"><canvas id="sentChart" height="180"></canvas></div>
+    {% else %}
+      <div style="text-align:center;padding:40px;color:var(--muted);">No comment data yet.<br>Comments are collected on the next full sync.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Views Trend ─────────────────────────────────────────────────────── -->
+<div class="chart-card" style="margin-bottom:24px;">
+  <h3>👁 Daily Views Gained
+    {% if using_snapshot_data %}
+      <span style="color:var(--muted);font-weight:400;font-size:12px;">(views accumulated each day · {{ days_label | lower }})</span>
+    {% else %}
+      <span style="color:var(--muted);font-weight:400;font-size:12px;">(total views by post date · all time · updates after 2nd sync)</span>
+    {% endif %}
+  </h3>
+  <div class="chart-wrap"><canvas id="viewsChart" height="80"></canvas></div>
+</div>
+
+<!-- ── Metric vs Views Correlation ────────────────────────────────────── -->
+<div class="chart-card" style="margin-bottom:24px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+    <h3 style="margin-bottom:0;">📊 Metric vs. Views Correlation
+      <span style="color:var(--muted);font-weight:400;font-size:12px;">(each dot = one video · hover for details)</span>
+    </h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="scatter-metric-btn active-saves"    data-metric="bookmarks"       data-active-class="active-saves">💾 Saves</button>
+      <button class="scatter-metric-btn"                 data-metric="likes"           data-active-class="active-likes">❤️ Likes</button>
+      <button class="scatter-metric-btn"                 data-metric="comments"        data-active-class="active-comments">💬 Comments</button>
+      <button class="scatter-metric-btn"                 data-metric="shares"          data-active-class="active-shares">🔁 Shares</button>
+      <button class="scatter-metric-btn"                 data-metric="engagement_rate" data-active-class="active-eng">📊 Eng%</button>
+    </div>
+  </div>
+  <div class="chart-wrap"><canvas id="scatterChart" height="100"></canvas></div>
+  <div id="scatter-stats" style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center;"></div>
+</div>
+
+<!-- ── Video Performance Table ────────────────────────────────────────── -->
+<div class="table-card">
+  <h3>🎬 Video Performance</h3>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <input type="text"   id="f-search"    placeholder="Search description…"  oninput="applyFilters()" />
+    <select id="f-sort" onchange="applyFilters()">
+      <option value="posted_at-desc">Date (newest first)</option>
+      <option value="posted_at-asc">Date (oldest first)</option>
+      <option value="views-desc">Views (high → low)</option>
+      <option value="views-asc">Views (low → high)</option>
+      <option value="likes-desc">Likes (high → low)</option>
+      <option value="comments-desc">Comments (high → low)</option>
+      <option value="shares-desc">Shares (high → low)</option>
+      <option value="engagement_rate-desc">Engagement (high → low)</option>
+      <option value="bookmarks-desc">Saves (high → low)</option>
+    </select>
+    <input type="date"   id="f-date-from" onchange="applyFilters()" title="Posted from" />
+    <input type="date"   id="f-date-to"   onchange="applyFilters()" title="Posted to" />
+    <input type="number" id="f-min-views" placeholder="Min views" min="0" oninput="applyFilters()" />
+    <input type="number" id="f-min-eng"   placeholder="Min eng %" min="0" step="0.1" oninput="applyFilters()" />
+    <button class="btn btn-ghost" onclick="resetFilters()" style="padding:7px 14px;">✕ Clear</button>
+    <span class="filter-count" id="filter-count"></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Description</th>
+        <th class="num sortable" data-col="views">Views</th>
+        <th class="num sortable" data-col="likes">Likes</th>
+        <th class="num sortable" data-col="comments">Comments</th>
+        <th class="num sortable" data-col="shares">Shares</th>
+        <th class="num sortable" data-col="engagement_rate">Eng %</th>
+        <th class="num sortable" data-col="bookmarks">Saves</th>
+        <th>Music</th>
+        <th class="sortable" data-col="posted_at">Posted</th>
+      </tr>
+    </thead>
+    <tbody id="video-tbody"></tbody>
+  </table>
+</div>
+
+<!-- ── Bottom Row ──────────────────────────────────────────────────────── -->
+<div class="bottom-row">
+
+  <!-- Top 5 Videos -->
+  <div class="chart-card">
+    <h3>🏆 Top 5 Videos by Views</h3>
+    {% for v in top5 %}
+    <div class="top-video-item">
+      <div class="rank rank-{{ loop.index }}">{{ loop.index }}</div>
+      <div>
+        <div class="top-video-desc">
+          {% if v.url %}<a href="{{ v.url }}" target="_blank">{% endif %}
+          {{ (v.description or '(no caption)')[:80] }}{% if (v.description or '') | length > 80 %}…{% endif %}
+          {% if v.url %}</a>{% endif %}
+        </div>
+        <div class="top-video-stats">
+          👁 {{ "{:,}".format(v.views or 0) }} &nbsp;·&nbsp;
+          ❤️ {{ "{:,}".format(v.likes or 0) }} &nbsp;·&nbsp;
+          💬 {{ "{:,}".format(v.comments or 0) }}
+          &nbsp;·&nbsp; {{ v.posted_at[:10] if v.posted_at else '' }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Sync Log -->
+  <div class="chart-card">
+    <h3>🔄 Sync History</h3>
+    {% if recent_syncs %}
+      {% for s in recent_syncs %}
+      <div class="sync-item">
+        <div class="sync-dot {% if s.status == 'success' %}sync-dot-success{% else %}sync-dot-error{% endif %}"></div>
+        <div>
+          <div>@{{ s.username }} · {{ s.videos_fetched }} videos</div>
+          <div class="sync-meta">{{ s.ran_at[:16] }} UTC
+            {% if s.status == 'error' %} · <span style="color:var(--negative);">{{ s.message[:60] }}</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="color:var(--muted);font-size:13px;padding-top:8px;">No syncs yet. Click "Sync Now" to start.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% endif %} <!-- end has_data -->
+
+</main>
+
+<!-- ── Toast ───────────────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<script>
+// ── Data from Flask ───────────────────────────────────────────────────────
+const engTrend    = {{ eng_trend_json | safe }};
+const viewsTrend  = {{ views_trend_json | safe }};
+const sentiment   = {{ sentiment | tojson }};
+const ALL_VIDEOS  = {{ videos | tojson }};
+const DAYS        = {{ days }};
+
+// ── Video Table Render ────────────────────────────────────────────────────
+function fmt(n) {
+  n = n || 0;
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+
+function engBadge(rate) {
+  const p = (rate * 100).toFixed(2);
+  const cls = rate >= 0.05 ? 'badge-high' : rate >= 0.02 ? 'badge-med' : 'badge-low';
+  return `<span class="badge ${cls}">${p}%</span>`;
+}
+
+function renderTable(videos) {
+  const tbody = document.getElementById('video-tbody');
+  if (!tbody) return;
+  if (videos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:24px;">No videos match your filters.</td></tr>';
+  } else {
+    tbody.innerHTML = videos.map((v, i) => `
+      <tr>
+        <td style="color:var(--muted);">${i + 1}</td>
+        <td class="td-desc">${v.url ? `<a href="${v.url}" target="_blank">${v.description || '(no caption)'}</a>` : (v.description || '(no caption)')}</td>
+        <td class="num">${fmt(v.views)}</td>
+        <td class="num">${fmt(v.likes)}</td>
+        <td class="num">${fmt(v.comments)}</td>
+        <td class="num">${fmt(v.shares)}</td>
+        <td class="num">${engBadge(v.engagement_rate || 0)}</td>
+        <td class="num">${fmt(v.bookmarks)}</td>
+        <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);">${v.music_name || '—'}</td>
+        <td style="white-space:nowrap;color:var(--muted);">${(v.posted_at || '').slice(0, 10) || '—'}</td>
+      </tr>`).join('');
+  }
+  const countEl = document.getElementById('filter-count');
+  if (countEl) countEl.textContent = `${videos.length} of ${ALL_VIDEOS.length} videos`;
+}
+
+// ── Sort State ────────────────────────────────────────────────────────────
+let sortCol = 'posted_at';
+let sortDir = 'desc';
+
+function applyFilters() {
+  const search   = (document.getElementById('f-search')?.value || '').toLowerCase();
+  const dateFrom = document.getElementById('f-date-from')?.value || '';
+  const dateTo   = document.getElementById('f-date-to')?.value || '';
+  const minViews = parseInt(document.getElementById('f-min-views')?.value || '0') || 0;
+  const minEng   = parseFloat(document.getElementById('f-min-eng')?.value || '0') || 0;
+  const sortVal  = document.getElementById('f-sort')?.value || 'posted_at-desc';
+  [sortCol, sortDir] = sortVal.split('-');
+
+  let filtered = ALL_VIDEOS.filter(v => {
+    if (search && !(v.description || '').toLowerCase().includes(search)) return false;
+    const date = (v.posted_at || '').slice(0, 10);
+    if (dateFrom && date < dateFrom) return false;
+    if (dateTo   && date > dateTo)   return false;
+    if (minViews > 0 && (v.views || 0) < minViews) return false;
+    if (minEng   > 0 && (v.engagement_rate || 0) * 100 < minEng) return false;
+    return true;
+  });
+
+  filtered.sort((a, b) => {
+    let av = a[sortCol] ?? '';
+    let bv = b[sortCol] ?? '';
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  updateSortHeaders();
+  renderTable(filtered);
+}
+
+function updateSortHeaders() {
+  document.querySelectorAll('thead th.sortable').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === sortCol) th.classList.add('sort-' + sortDir);
+  });
+}
+
+function resetFilters() {
+  ['f-search','f-date-from','f-date-to','f-min-views','f-min-eng'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const sortEl = document.getElementById('f-sort');
+  if (sortEl) sortEl.value = 'posted_at-desc';
+  applyFilters();
+}
+
+// Click column headers to sort
+document.querySelectorAll('thead th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    const sortEl = document.getElementById('f-sort');
+    if (sortCol === col) {
+      sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      sortCol = col;
+      sortDir = 'desc';
+    }
+    if (sortEl) sortEl.value = `${sortCol}-${sortDir}`;
+    applyFilters();
+  });
+});
+
+// Initial render
+if (ALL_VIDEOS.length > 0) renderTable(ALL_VIDEOS);
+
+// ── Engagement Chart ──────────────────────────────────────────────────────
+if (engTrend.length > 0) {
+  const engCtx = document.getElementById('engChart');
+  if (engCtx) {
+    new Chart(engCtx, {
+      type: 'line',
+      data: {
+        labels: engTrend.map(d => d.day),
+        datasets: [{
+          label: 'Avg Engagement Rate',
+          data: engTrend.map(d => (d.avg_eng * 100).toFixed(2)),
+          borderColor: '#fe2c55',
+          backgroundColor: 'rgba(254,44,85,0.08)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: '#fe2c55',
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.raw}% engagement`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#888899', maxTicksLimit: 8 },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          },
+          y: {
+            ticks: { color: '#888899', callback: v => v + '%' },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          }
+        }
+      }
+    });
+  }
+}
+
+// ── Views Chart ────────────────────────────────────────────────────────────
+if (viewsTrend.length > 0) {
+  const viewsCtx = document.getElementById('viewsChart');
+  if (viewsCtx) {
+    new Chart(viewsCtx, {
+      type: 'bar',
+      data: {
+        labels: viewsTrend.map(d => d.day),
+        datasets: [{
+          label: 'Total Views',
+          data: viewsTrend.map(d => d.total_views),
+          backgroundColor: 'rgba(37,244,238,0.3)',
+          borderColor: '#25f4ee',
+          borderWidth: 1,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.raw.toLocaleString()} views`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#888899', maxTicksLimit: 10 },
+            grid: { color: 'rgba(255,255,255,0.03)' }
+          },
+          y: {
+            ticks: {
+              color: '#888899',
+              callback: v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v
+            },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          }
+        }
+      }
+    });
+  }
+}
+
+// ── Metric vs Views Scatter ────────────────────────────────────────────────
+(function() {
+  const scatterCtx = document.getElementById('scatterChart');
+  if (!scatterCtx || ALL_VIDEOS.length === 0) return;
+
+  const METRICS = {
+    bookmarks:       { label: 'Saves (Bookmarks)', icon: '💾', bg: 'rgba(254,44,85,0.4)',    border: 'rgba(254,44,85,0.9)',    trend: 'rgba(254,44,85,0.6)',    isRate: false },
+    likes:           { label: 'Likes',             icon: '❤️', bg: 'rgba(245,158,11,0.4)',   border: 'rgba(245,158,11,0.9)',   trend: 'rgba(245,158,11,0.6)',   isRate: false },
+    comments:        { label: 'Comments',          icon: '💬', bg: 'rgba(139,92,246,0.4)',   border: 'rgba(139,92,246,0.9)',   trend: 'rgba(139,92,246,0.6)',   isRate: false },
+    shares:          { label: 'Shares',            icon: '🔁', bg: 'rgba(16,185,129,0.4)',   border: 'rgba(16,185,129,0.9)',   trend: 'rgba(16,185,129,0.6)',   isRate: false },
+    engagement_rate: { label: 'Engagement %',      icon: '📊', bg: 'rgba(249,115,22,0.4)',   border: 'rgba(249,115,22,0.9)',   trend: 'rgba(249,115,22,0.6)',   isRate: true  },
+  };
+  const STAT_COLORS = {
+    bookmarks: '#fe2c55', likes: '#f59e0b', comments: '#8b5cf6', shares: '#10b981', engagement_rate: '#f97316'
+  };
+
+  // Filter by selected time range
+  const cutoff = DAYS > 0
+    ? new Date(Date.now() - DAYS * 86400000).toISOString().slice(0, 10)
+    : null;
+  const filteredVideos = cutoff
+    ? ALL_VIDEOS.filter(v => (v.posted_at || '') >= cutoff)
+    : ALL_VIDEOS;
+
+  let scatterChart = null;
+
+  function buildScatter(metricKey) {
+    const meta = METRICS[metricKey];
+
+    const points = filteredVideos.map(v => {
+      const rawX = v[metricKey] || 0;
+      return {
+        x: meta.isRate ? rawX * 100 : rawX,
+        y: v.views || 0,
+        label: (v.description || '(no caption)').slice(0, 60),
+        metricVal: meta.isRate ? (rawX * 100).toFixed(2) + '%' : rawX.toLocaleString(),
+      };
+    });
+
+    const n = points.length;
+    const statsEl = document.getElementById('scatter-stats');
+
+    if (n < 2) {
+      if (statsEl) statsEl.innerHTML = `Not enough videos in this time range to compute correlation (${n} video${n === 1 ? '' : 's'})`;
+      return;
+    }
+
+    // Pearson correlation
+    const sumX  = points.reduce((s, p) => s + p.x, 0);
+    const sumY  = points.reduce((s, p) => s + p.y, 0);
+    const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
+    const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0);
+    const sumY2 = points.reduce((s, p) => s + p.y * p.y, 0);
+    const denom = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+    const r = denom === 0 ? 0 : (n * sumXY - sumX * sumY) / denom;
+
+    // Linear regression
+    const meanX = sumX / n;
+    const meanY = sumY / n;
+    const ssXY  = points.reduce((s, p) => s + (p.x - meanX) * (p.y - meanY), 0);
+    const ssX   = points.reduce((s, p) => s + (p.x - meanX) * (p.x - meanX), 0);
+    const slope = ssX === 0 ? 0 : ssXY / ssX;
+    const intercept = meanY - slope * meanX;
+    const xMin = Math.min(...points.map(p => p.x));
+    const xMax = Math.max(...points.map(p => p.x));
+    const trendLine = [
+      { x: xMin, y: slope * xMin + intercept },
+      { x: xMax, y: slope * xMax + intercept },
+    ];
+
+    if (scatterChart) scatterChart.destroy();
+
+    scatterChart = new Chart(scatterCtx, {
+      type: 'scatter',
+      data: {
+        datasets: [
+          {
+            label: 'Videos',
+            data: points,
+            backgroundColor: meta.bg,
+            borderColor: meta.border,
+            borderWidth: 1,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+          },
+          {
+            label: 'Trend',
+            data: trendLine,
+            type: 'line',
+            borderColor: meta.trend,
+            borderWidth: 2,
+            borderDash: [6, 3],
+            pointRadius: 0,
+            fill: false,
+            tension: 0,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            filter: item => item.datasetIndex === 0,
+            callbacks: {
+              label: ctx => {
+                const p = ctx.raw;
+                return [
+                  p.label,
+                  `${meta.icon} ${meta.label}: ${p.metricVal}`,
+                  `👁 Views: ${p.y.toLocaleString()}`,
+                ];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: meta.label, color: '#888899', font: { size: 12 } },
+            ticks: {
+              color: '#888899',
+              callback: meta.isRate
+                ? v => v.toFixed(1) + '%'
+                : v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v
+            },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          },
+          y: {
+            title: { display: true, text: 'Views', color: '#888899', font: { size: 12 } },
+            ticks: {
+              color: '#888899',
+              callback: v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v
+            },
+            grid: { color: 'rgba(255,255,255,0.04)' }
+          }
+        }
+      }
+    });
+
+    // Correlation stats
+    if (statsEl) {
+      const absR = Math.abs(r);
+      const strength = absR >= 0.7 ? 'strong' : absR >= 0.4 ? 'moderate' : absR >= 0.2 ? 'weak' : 'no';
+      const direction = r >= 0 ? 'positive' : 'negative';
+      const statColor = absR >= 0.4 ? STAT_COLORS[metricKey] : '#888899';
+      statsEl.innerHTML = `Pearson r = <strong style="color:${statColor}">${r.toFixed(3)}</strong> &nbsp;·&nbsp; <span style="color:${statColor}">${strength} ${direction} correlation</span> &nbsp;·&nbsp; ${n} videos`;
+    }
+  }
+
+  // Metric button toggle
+  document.querySelectorAll('.scatter-metric-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.scatter-metric-btn').forEach(b => {
+        b.className = 'scatter-metric-btn';
+      });
+      btn.classList.add(btn.dataset.activeClass);
+      buildScatter(btn.dataset.metric);
+    });
+  });
+
+  // Initial render
+  buildScatter('bookmarks');
+})();
+
+// ── Sentiment Donut ────────────────────────────────────────────────────────
+const sentCtx = document.getElementById('sentChart');
+if (sentCtx && (sentiment.positive + sentiment.neutral + sentiment.negative) > 0) {
+  new Chart(sentCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Positive', 'Neutral', 'Negative'],
+      datasets: [{
+        data: [sentiment.positive || 0, sentiment.neutral || 0, sentiment.negative || 0],
+        backgroundColor: ['rgba(74,222,128,0.8)', 'rgba(148,163,184,0.5)', 'rgba(248,113,113,0.7)'],
+        borderColor: ['#4ade80', '#94a3b8', '#f87171'],
+        borderWidth: 1,
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '65%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#888899', padding: 16, boxWidth: 12 }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.raw.toLocaleString()} comments`
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Sync Trigger ───────────────────────────────────────────────────────────
+function showToast(msg, duration = 4000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function triggerSync() {
+  const btn = document.getElementById('sync-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing...';
+
+  fetch('/api/sync', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      showToast('✅ ' + data.message, 6000);
+      btn.textContent = '⚡ Sync Now';
+      btn.disabled = false;
+      // Auto-reload after 2.5 minutes to show new data
+      setTimeout(() => location.reload(), 150000);
+    })
+    .catch(err => {
+      showToast('❌ Sync request failed. Check the terminal.');
+      btn.textContent = '⚡ Sync Now';
+      btn.disabled = false;
+    });
+}
+</script>
+
+</body>
+</html>
