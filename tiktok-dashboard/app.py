@@ -15,7 +15,7 @@ from flask import Flask, render_template, jsonify, request
 from apscheduler.schedulers.background import BackgroundScheduler
 
 import db
-import apify_client
+import tiktok_scraper as apify_client
 from config import (
     TIKTOK_USERNAMES, REFRESH_SCHEDULE,
     DAILY_REFRESH_HOUR, DAILY_REFRESH_MINUTE,

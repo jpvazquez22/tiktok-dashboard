@@ -2,18 +2,19 @@
 # Edit these values to match your setup.
 
 import os
-APIFY_API_TOKEN = os.environ.get("APIFY_API_TOKEN", "apify_api_JIzKrcjlqPjBoouk9gNg9nxwke7VbX3Tn40m")
+from dotenv import load_dotenv
+load_dotenv()
+# TikTok ms_token from browser cookies (optional but improves reliability).
+# To get it: open tiktok.com in Chrome → DevTools → Application → Cookies → copy "msToken" value.
+MS_TOKEN = os.environ.get("MS_TOKEN", None)
 
 # TikTok username(s) to track (without the @)
-TIKTOK_USERNAMES = ["dragsimone", "eyeopenup_", "cleodipatra", "aphroditequeen011", "queentequila33"]
+TIKTOK_USERNAMES = ["dragsimone", "eyeopenup_", "cleodipatra", "aphroditequeen011", "queentequila33", "velvetvandal_", "gucciclaw", "glam__iconic007", "jeffreedrag"]
 
 # How many recent posts to fetch per run.
-# Set to 0 for unlimited (fetches all videos — may take longer and cost more Apify credits).
+# Set to 0 for unlimited (fetches all videos — may take longer).
 # Most TikTok profiles expose up to ~500 videos via scraping.
 MAX_POSTS_PER_USER = 500
-
-# Apify Actor ID for TikTok scraper (clockworks/tiktok-scraper)
-TIKTOK_ACTOR_ID = "clockworks~tiktok-scraper"
 
 # Refresh schedule: "hourly" | "daily" | "manual"
 REFRESH_SCHEDULE = "daily"
