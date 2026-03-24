@@ -26,8 +26,11 @@ DAILY_REFRESH_MINUTE = 0
 # Local server port (Railway overrides via PORT env var)
 PORT = int(os.environ.get("PORT", 5050))
 
-# SQLite database file location
-# Stored in user's home directory to avoid filesystem restrictions.
+# Database configuration
+# If DATABASE_URL is set (e.g. Supabase PostgreSQL), use that.
+# Otherwise fall back to local SQLite.
+DATABASE_URL = os.environ.get("DATABASE_URL", None)
+
 import os as _os
 _HOME = _os.path.expanduser("~")
 DB_PATH = _os.path.join(_HOME, "tiktok_analytics.db")
