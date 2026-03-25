@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TikTok Leaderboard</title>
+  <title>Analytics Leaderboard</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -163,6 +163,25 @@
     .sort-pill:hover { color: var(--text); border-color: #555; }
     .sort-pill.active { background: rgba(37,244,238,0.12); border-color: #25f4ee; color: #25f4ee; }
 
+    /* Platform toggle */
+    .platform-toggle {
+      display: flex; gap: 6px; margin-bottom: 16px;
+    }
+    .platform-toggle-btn {
+      padding: 7px 18px; border-radius: 20px; border: 1px solid var(--border);
+      background: var(--bg3); color: var(--muted); font-size: 13px; font-weight: 700;
+      cursor: pointer; text-decoration: none; transition: all 0.2s;
+    }
+    .platform-toggle-btn:hover { color: var(--text); border-color: #555; }
+    .platform-toggle-btn.ptb-active {
+      color: white; border-color: transparent;
+    }
+    .platform-toggle-btn.ptb-tiktok.ptb-active { background: #fe2c55; }
+    .platform-toggle-btn.ptb-instagram.ptb-active { background: linear-gradient(135deg, #F77737, #E1306C); }
+    .platform-toggle-btn.ptb-combined.ptb-active { background: linear-gradient(135deg, #25f4ee, #fe2c55); }
+
+    .ig-handle { font-size: 11px; color: #E1306C; }
+
     @media (max-width: 600px) {
       .main { padding: 16px; }
       .topbar { padding: 12px 16px; }
@@ -180,7 +199,7 @@
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;">
-    <select onchange="location.href='/leaderboard?days='+this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:13px;cursor:pointer;">
+    <select onchange="location.href='/leaderboard?platform={{ lb_platform }}&days='+this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:13px;cursor:pointer;">
       {% for val, label in range_options.items() %}
         <option value="{{ val }}" {% if val == days|string %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
@@ -201,8 +220,15 @@
   <div class="leaderboard-header">
     <div>
       <h2>🏆 Account Leaderboard</h2>
-      <div class="sub">All {{ all_usernames | length }} accounts · {{ days_label }} · click any column to sort</div>
+      <div class="sub">{{ rows | length }} accounts · {{ days_label }} · {{ lb_platform | capitalize }} · click any column to sort</div>
     </div>
+  </div>
+
+  <!-- Platform Toggle -->
+  <div class="platform-toggle">
+    <a href="/leaderboard?platform=tiktok&days={{ days }}" class="platform-toggle-btn ptb-tiktok {% if lb_platform == 'tiktok' %}ptb-active{% endif %}">TikTok</a>
+    <a href="/leaderboard?platform=instagram&days={{ days }}" class="platform-toggle-btn ptb-instagram {% if lb_platform == 'instagram' %}ptb-active{% endif %}">Instagram</a>
+    <a href="/leaderboard?platform=combined&days={{ days }}" class="platform-toggle-btn ptb-combined {% if lb_platform == 'combined' %}ptb-active{% endif %}">Combined</a>
   </div>
 
   <!-- Quick-sort pills -->
@@ -259,16 +285,20 @@ function engBadge(pct) {
 let sortCol = 'total_views';
 let sortDir = 'desc';
 
+const LB_PLATFORM = '{{ lb_platform }}';
+
 function renderTable(data) {
   const tbody = document.getElementById('lb-tbody');
   tbody.innerHTML = data.map((r, i) => {
     const rankCls = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+    const igLine = r.has_ig && r.ig_handle ? `<div class="ig-handle">IG: @${r.ig_handle}</div>` : '';
     return `<tr>
       <td><span class="rank-badge ${rankCls}">${i + 1}</span></td>
       <td>
         <div class="account-cell">
           <div>
-            <div><a class="username-link" href="/?user=${r.username}&days={{ days }}" target="_blank">@${r.username}</a></div>
+            <div><a class="username-link" href="/?user=${r.username}&platform=${LB_PLATFORM === 'combined' ? 'tiktok' : LB_PLATFORM}&days={{ days }}" target="_blank">@${r.username}</a></div>
+            ${igLine}
             <div class="followers-sub">${fmt(r.followers)} followers</div>
           </div>
         </div>

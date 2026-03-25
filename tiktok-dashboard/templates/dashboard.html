@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TikTok Analytics — @{{ username }}</title>
+  <title>{{ 'Instagram' if platform == 'instagram' else 'TikTok' }} Analytics — @{{ username }}</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     /* ── Reset & Base ───────────────────────────────────────────── */
@@ -22,6 +22,52 @@
       --negative:  #f87171;
       --neutral:   #94a3b8;
       --radius:    12px;
+    }
+
+    /* Instagram theme overrides */
+    body.ig-theme {
+      --accent:  #E1306C;
+      --accent2: #F77737;
+    }
+    body.ig-theme .tiktok-logo {
+      background: linear-gradient(135deg, #F77737, #E1306C, #833AB4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    body.ig-theme .kpi-card::before {
+      background: linear-gradient(90deg, #F77737, #E1306C, #833AB4);
+    }
+    body.ig-theme .avatar { border-color: #E1306C; }
+
+    /* Platform sub-tabs */
+    .platform-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 10px 28px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+    }
+    .platform-tab {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .platform-tab:hover { color: var(--text); border-color: #555; }
+    .platform-tab.pt-active {
+      color: white;
+      border-color: transparent;
+    }
+    .platform-tab.pt-tiktok.pt-active  { background: #fe2c55; }
+    .platform-tab.pt-instagram.pt-active { background: linear-gradient(135deg, #F77737, #E1306C); }
+    .platform-tab.pt-disabled {
+      opacity: 0.35;
+      pointer-events: none;
+      cursor: default;
     }
 
     body {
@@ -410,35 +456,46 @@
     }
   </style>
 </head>
-<body>
+<body class="{{ 'ig-theme' if platform == 'instagram' else '' }}">
 
 <!-- ── Top Bar ─────────────────────────────────────────────────────────── -->
 <header class="topbar">
   <div class="topbar-left">
-    <span class="tiktok-logo">TT</span>
+    <span class="tiktok-logo">{{ 'IG' if platform == 'instagram' else 'TT' }}</span>
     <div>
-      <h1>Analytics Dashboard</h1>
-      <div class="muted">@{{ username }} · Last synced: <span id="last-updated">{{ last_updated[:16] if last_updated and last_updated != 'Never' else 'Never' }}</span></div>
+      <h1>{{ 'Instagram' if platform == 'instagram' else 'TikTok' }} Analytics</h1>
+      <div class="muted">@{{ ig_handle if platform == 'instagram' and ig_handle else username }} · Last synced: <span id="last-updated">{{ last_updated[:16] if last_updated and last_updated != 'Never' else 'Never' }}</span></div>
     </div>
   </div>
   <div class="topbar-right">
-    <select onchange="location.href='/?user={{ username }}&days='+this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:13px;cursor:pointer;">
+    <select onchange="location.href='/?user={{ username }}&platform={{ platform }}&days='+this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 12px;font-size:13px;cursor:pointer;">
       {% for val, label in range_options.items() %}
         <option value="{{ val }}" {% if val == days|string %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
     <button class="btn btn-ghost" onclick="location.reload()">↻ Refresh</button>
-    <button class="btn btn-primary" id="sync-btn" onclick="triggerSync()">⚡ Sync Now</button>
+    <button class="btn btn-primary" id="sync-btn" onclick="triggerSync()">⚡ Sync {{ 'IG' if platform == 'instagram' else 'TT' }}</button>
   </div>
 </header>
 
 <!-- ── Account Tabs ────────────────────────────────────────────────────── -->
 <nav class="tab-bar">
   {% for u in all_usernames %}
-    <a href="/?user={{ u }}&days={{ days }}" class="tab-item {% if u == username %}tab-active{% endif %}">@{{ u }}</a>
+    <a href="/?user={{ u }}&platform={{ platform }}&days={{ days }}" class="tab-item {% if u == username %}tab-active{% endif %}">@{{ u }}</a>
   {% endfor %}
   <a href="/leaderboard?days={{ days }}" class="tab-item">🏆 Leaderboard</a>
 </nav>
+
+<!-- ── Platform Sub-Tabs ──────────────────────────────────────────────── -->
+<div class="platform-tabs">
+  <a href="/?user={{ username }}&platform=tiktok&days={{ days }}"
+     class="platform-tab pt-tiktok {% if platform == 'tiktok' %}pt-active{% endif %}">TikTok</a>
+  <a href="/?user={{ username }}&platform=instagram&days={{ days }}"
+     class="platform-tab pt-instagram {% if platform == 'instagram' %}pt-active{% endif %} {% if not has_ig %}pt-disabled{% endif %}"
+     {% if not has_ig %}title="No Instagram linked for this account"{% endif %}>
+    Instagram{% if has_ig and ig_handle %} (@{{ ig_handle }}){% endif %}
+  </a>
+</div>
 
 <main class="main">
 
@@ -446,8 +503,8 @@
 <!-- ── Empty State ─────────────────────────────────────────────────────── -->
 <div class="empty-state">
   <div class="icon">📊</div>
-  <h3>No data yet</h3>
-  <p>Click <strong>Sync Now</strong> to pull your TikTok data from Apify.<br>
+  <h3>No {{ 'Instagram' if platform == 'instagram' else 'TikTok' }} data yet</h3>
+  <p>Click <strong>Sync {{ 'IG' if platform == 'instagram' else 'TT' }}</strong> to pull your {{ 'Instagram' if platform == 'instagram' else 'TikTok' }} data.<br>
   This usually takes 1–3 minutes on the first run.</p>
   <button class="btn btn-primary" onclick="triggerSync()" style="font-size:15px;padding:12px 28px;">
     ⚡ Pull Data Now
@@ -477,7 +534,7 @@
       </div>
       <div class="profile-stat">
         <div class="val">{{ "{:,}".format(profile.total_videos or 0) }}</div>
-        <div class="lbl">Videos</div>
+        <div class="lbl">{{ 'Posts' if platform == 'instagram' else 'Videos' }}</div>
       </div>
       <div class="profile-stat">
         <div class="val">{{ format_num(profile.total_hearts or 0) }}</div>
@@ -492,7 +549,7 @@
   <div class="kpi-card">
     <div class="kpi-label">Views</div>
     <div class="kpi-value">{{ format_num(kpis.total_views or 0) }}</div>
-    <div class="kpi-sub">across {{ kpis.total_videos or 0 }} videos · {{ days_label }}</div>
+    <div class="kpi-sub">across {{ kpis.total_videos or 0 }} {{ 'posts' if platform == 'instagram' else 'videos' }} · {{ days_label }}</div>
   </div>
   <div class="kpi-card">
     <div class="kpi-label">Avg Views/Video</div>
@@ -509,11 +566,13 @@
     <div class="kpi-value">{{ format_num(kpis.total_likes or 0) }}</div>
     <div class="kpi-sub">{{ format_num(kpis.total_comments or 0) }} comments · {{ days_label }}</div>
   </div>
+  {% if platform != 'instagram' %}
   <div class="kpi-card">
     <div class="kpi-label">Shares</div>
     <div class="kpi-value">{{ format_num(kpis.total_shares or 0) }}</div>
     <div class="kpi-sub">{{ days_label }}</div>
   </div>
+  {% endif %}
   <div class="kpi-card">
     <div class="kpi-label">Audience Sentiment</div>
     <div class="kpi-value">
@@ -564,10 +623,14 @@
       <span style="color:var(--muted);font-weight:400;font-size:12px;">(each dot = one video · hover for details)</span>
     </h3>
     <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      {% if platform != 'instagram' %}
       <button class="scatter-metric-btn active-saves"    data-metric="bookmarks"       data-active-class="active-saves">💾 Saves</button>
-      <button class="scatter-metric-btn"                 data-metric="likes"           data-active-class="active-likes">❤️ Likes</button>
+      {% endif %}
+      <button class="scatter-metric-btn {% if platform == 'instagram' %}active-likes{% endif %}" data-metric="likes" data-active-class="active-likes">❤️ Likes</button>
       <button class="scatter-metric-btn"                 data-metric="comments"        data-active-class="active-comments">💬 Comments</button>
+      {% if platform != 'instagram' %}
       <button class="scatter-metric-btn"                 data-metric="shares"          data-active-class="active-shares">🔁 Shares</button>
+      {% endif %}
       <button class="scatter-metric-btn"                 data-metric="engagement_rate" data-active-class="active-eng">📊 Eng%</button>
     </div>
   </div>
@@ -577,7 +640,7 @@
 
 <!-- ── Video Performance Table ────────────────────────────────────────── -->
 <div class="table-card">
-  <h3>🎬 Video Performance</h3>
+  <h3>{{ '📸 Post Performance' if platform == 'instagram' else '🎬 Video Performance' }}</h3>
 
   <!-- Filter Bar -->
   <div class="filter-bar">
@@ -609,10 +672,10 @@
         <th class="num sortable" data-col="views">Views</th>
         <th class="num sortable" data-col="likes">Likes</th>
         <th class="num sortable" data-col="comments">Comments</th>
-        <th class="num sortable" data-col="shares">Shares</th>
+        {% if platform != 'instagram' %}<th class="num sortable" data-col="shares">Shares</th>{% endif %}
         <th class="num sortable" data-col="engagement_rate">Eng %</th>
-        <th class="num sortable" data-col="bookmarks">Saves</th>
-        <th>Music</th>
+        {% if platform != 'instagram' %}<th class="num sortable" data-col="bookmarks">Saves</th>{% endif %}
+        {% if platform != 'instagram' %}<th>Music</th>{% endif %}
         <th class="sortable" data-col="posted_at">Posted</th>
       </tr>
     </thead>
@@ -625,7 +688,7 @@
 
   <!-- Top 5 Videos -->
   <div class="chart-card">
-    <h3>🏆 Top 5 Videos by Views</h3>
+    <h3>🏆 Top 5 {{ 'Posts' if platform == 'instagram' else 'Videos' }} by Views</h3>
     {% for v in top5 %}
     <div class="top-video-item">
       <div class="rank rank-{{ loop.index }}">{{ loop.index }}</div>
@@ -682,6 +745,7 @@ const viewsTrend  = {{ views_trend_json | safe }};
 const sentiment   = {{ sentiment | tojson }};
 const ALL_VIDEOS  = {{ videos | tojson }};
 const DAYS        = {{ days }};
+const PLATFORM    = '{{ platform }}';
 
 // ── Video Table Render ────────────────────────────────────────────────────
 function fmt(n) {
@@ -700,8 +764,10 @@ function engBadge(rate) {
 function renderTable(videos) {
   const tbody = document.getElementById('video-tbody');
   if (!tbody) return;
+  const isIG = PLATFORM === 'instagram';
+  const colCount = isIG ? 7 : 10;
   if (videos.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:24px;">No videos match your filters.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${colCount}" style="text-align:center;color:var(--muted);padding:24px;">No ${isIG ? 'posts' : 'videos'} match your filters.</td></tr>`;
   } else {
     tbody.innerHTML = videos.map((v, i) => `
       <tr>
@@ -710,15 +776,15 @@ function renderTable(videos) {
         <td class="num">${fmt(v.views)}</td>
         <td class="num">${fmt(v.likes)}</td>
         <td class="num">${fmt(v.comments)}</td>
-        <td class="num">${fmt(v.shares)}</td>
+        ${isIG ? '' : `<td class="num">${fmt(v.shares)}</td>`}
         <td class="num">${engBadge(v.engagement_rate || 0)}</td>
-        <td class="num">${fmt(v.bookmarks)}</td>
-        <td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);">${v.music_name || '—'}</td>
+        ${isIG ? '' : `<td class="num">${fmt(v.bookmarks)}</td>`}
+        ${isIG ? '' : `<td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);">${v.music_name || '—'}</td>`}
         <td style="white-space:nowrap;color:var(--muted);">${(v.posted_at || '').slice(0, 10) || '—'}</td>
       </tr>`).join('');
   }
   const countEl = document.getElementById('filter-count');
-  if (countEl) countEl.textContent = `${videos.length} of ${ALL_VIDEOS.length} videos`;
+  if (countEl) countEl.textContent = `${videos.length} of ${ALL_VIDEOS.length} ${isIG ? 'posts' : 'videos'}`;
 }
 
 // ── Sort State ────────────────────────────────────────────────────────────
@@ -1045,7 +1111,7 @@ if (viewsTrend.length > 0) {
   });
 
   // Initial render
-  buildScatter('bookmarks');
+  buildScatter(PLATFORM === 'instagram' ? 'likes' : 'bookmarks');
 })();
 
 // ── Sentiment Donut ────────────────────────────────────────────────────────
@@ -1093,19 +1159,19 @@ function triggerSync() {
   const btn = document.getElementById('sync-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Syncing...';
+  const endpoint = PLATFORM === 'instagram' ? '/api/sync/instagram' : '/api/sync';
 
-  fetch('/api/sync', { method: 'POST' })
+  fetch(endpoint, { method: 'POST' })
     .then(r => r.json())
     .then(data => {
       showToast('✅ ' + data.message, 6000);
-      btn.textContent = '⚡ Sync Now';
+      btn.textContent = '⚡ Sync ' + (PLATFORM === 'instagram' ? 'IG' : 'TT');
       btn.disabled = false;
-      // Auto-reload after 2.5 minutes to show new data
       setTimeout(() => location.reload(), 150000);
     })
     .catch(err => {
       showToast('❌ Sync request failed. Check the terminal.');
-      btn.textContent = '⚡ Sync Now';
+      btn.textContent = '⚡ Sync ' + (PLATFORM === 'instagram' ? 'IG' : 'TT');
       btn.disabled = false;
     });
 }

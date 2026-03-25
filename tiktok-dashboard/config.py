@@ -16,6 +16,21 @@ TIKTOK_USERNAMES = ["dragsimone", "eyeopenup_", "cleodipatra", "aphroditequeen01
 # Most TikTok profiles expose up to ~500 videos via scraping.
 MAX_POSTS_PER_USER = 500
 
+# Instagram username mapping: TikTok username -> Instagram handle (None = no IG)
+INSTAGRAM_MAP = {
+    "dragsimone":       "dragsimone",
+    "eyeopenup_":       "eyeopenup_",
+    "cleodipatra":      "dragsanctum",
+    "aphroditequeen011":"aphroditequeen011",
+    "queentequila33":   None,
+    "velvetvandal_":    None,
+    "gucciclaw":        "gucciclaw",
+    "glam__iconic007":  "glam_iconic007",
+    "jeffreedrag":      "jeffreedrag",
+}
+INSTAGRAM_USERNAMES = [ig for ig in INSTAGRAM_MAP.values() if ig is not None]
+IG_MAX_POSTS_PER_USER = 50
+
 # Refresh schedule: "hourly" | "daily" | "manual"
 REFRESH_SCHEDULE = "daily"
 

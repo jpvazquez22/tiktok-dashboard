@@ -1,6 +1,7 @@
 """
 db.py — Database setup, insertion, and query helpers.
 Supports PostgreSQL (via DATABASE_URL) and SQLite (local fallback).
+All tables include a 'platform' column ('tiktok' or 'instagram').
 """
 
 import sqlite3
@@ -27,7 +28,6 @@ def get_conn():
 
 
 def _fetchone_dict(cursor):
-    """Fetch one row as a dict, works for both backends."""
     if USE_PG:
         cols = [desc[0] for desc in cursor.description] if cursor.description else []
         row = cursor.fetchone()
@@ -38,7 +38,6 @@ def _fetchone_dict(cursor):
 
 
 def _fetchall_dict(cursor):
-    """Fetch all rows as list of dicts, works for both backends."""
     if USE_PG:
         cols = [desc[0] for desc in cursor.description] if cursor.description else []
         rows = cursor.fetchall()
@@ -49,7 +48,7 @@ def _fetchall_dict(cursor):
 
 
 def init_db():
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, then run migrations."""
     conn = get_conn()
     c = conn.cursor()
 
@@ -64,12 +63,13 @@ def init_db():
                 comments    INTEGER DEFAULT 0,
                 shares      INTEGER DEFAULT 0,
                 bookmarks   INTEGER DEFAULT 0,
-                PRIMARY KEY (video_id, date)
+                platform    TEXT DEFAULT 'tiktok',
+                PRIMARY KEY (video_id, date, platform)
             )
         """)
         c.execute("""
             CREATE TABLE IF NOT EXISTS profiles (
-                username        TEXT PRIMARY KEY,
+                username        TEXT NOT NULL,
                 display_name    TEXT,
                 bio             TEXT,
                 followers       INTEGER DEFAULT 0,
@@ -77,12 +77,14 @@ def init_db():
                 total_videos    INTEGER DEFAULT 0,
                 total_hearts    INTEGER DEFAULT 0,
                 avatar_url      TEXT,
-                last_updated    TEXT
+                last_updated    TEXT,
+                platform        TEXT DEFAULT 'tiktok',
+                PRIMARY KEY (username, platform)
             )
         """)
         c.execute("""
             CREATE TABLE IF NOT EXISTS videos (
-                id              TEXT PRIMARY KEY,
+                id              TEXT NOT NULL,
                 username        TEXT,
                 description     TEXT,
                 url             TEXT,
@@ -96,12 +98,14 @@ def init_db():
                 music_name      TEXT,
                 duration        INTEGER DEFAULT 0,
                 posted_at       TEXT,
-                recorded_at     TEXT
+                recorded_at     TEXT,
+                platform        TEXT DEFAULT 'tiktok',
+                PRIMARY KEY (id, platform)
             )
         """)
         c.execute("""
             CREATE TABLE IF NOT EXISTS comments (
-                id              TEXT PRIMARY KEY,
+                id              TEXT NOT NULL,
                 video_id        TEXT,
                 username        TEXT,
                 text            TEXT,
@@ -109,7 +113,9 @@ def init_db():
                 sentiment       REAL DEFAULT 0,
                 sentiment_label TEXT,
                 posted_at       TEXT,
-                recorded_at     TEXT
+                recorded_at     TEXT,
+                platform        TEXT DEFAULT 'tiktok',
+                PRIMARY KEY (id, platform)
             )
         """)
         c.execute("""
@@ -120,9 +126,20 @@ def init_db():
                 videos_fetched  INTEGER DEFAULT 0,
                 comments_fetched INTEGER DEFAULT 0,
                 status          TEXT,
-                message         TEXT
+                message         TEXT,
+                platform        TEXT DEFAULT 'tiktok'
             )
         """)
+        # Migration: add platform column to existing tables
+        for table in ('profiles', 'videos', 'video_snapshots', 'comments', 'sync_log'):
+            try:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN platform TEXT DEFAULT 'tiktok'")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+        # Migration: update primary keys if needed (drop old, add new)
+        # This is handled by CREATE TABLE IF NOT EXISTS with the new schema above
+        # For existing tables, the platform column defaults to 'tiktok'
     else:
         c.executescript("""
             CREATE TABLE IF NOT EXISTS video_snapshots (
@@ -134,11 +151,12 @@ def init_db():
                 comments    INTEGER DEFAULT 0,
                 shares      INTEGER DEFAULT 0,
                 bookmarks   INTEGER DEFAULT 0,
-                PRIMARY KEY (video_id, date)
+                platform    TEXT DEFAULT 'tiktok',
+                PRIMARY KEY (video_id, date, platform)
             );
 
             CREATE TABLE IF NOT EXISTS profiles (
-                username        TEXT PRIMARY KEY,
+                username        TEXT NOT NULL,
                 display_name    TEXT,
                 bio             TEXT,
                 followers       INTEGER DEFAULT 0,
@@ -146,11 +164,13 @@ def init_db():
                 total_videos    INTEGER DEFAULT 0,
                 total_hearts    INTEGER DEFAULT 0,
                 avatar_url      TEXT,
-                last_updated    TEXT
+                last_updated    TEXT,
+                platform        TEXT DEFAULT 'tiktok',
+                PRIMARY KEY (username, platform)
             );
 
             CREATE TABLE IF NOT EXISTS videos (
-                id              TEXT PRIMARY KEY,
+                id              TEXT NOT NULL,
                 username        TEXT,
                 description     TEXT,
                 url             TEXT,
@@ -164,11 +184,13 @@ def init_db():
                 music_name      TEXT,
                 duration        INTEGER DEFAULT 0,
                 posted_at       TEXT,
-                recorded_at     TEXT
+                recorded_at     TEXT,
+                platform        TEXT DEFAULT 'tiktok',
+                PRIMARY KEY (id, platform)
             );
 
             CREATE TABLE IF NOT EXISTS comments (
-                id              TEXT PRIMARY KEY,
+                id              TEXT NOT NULL,
                 video_id        TEXT,
                 username        TEXT,
                 text            TEXT,
@@ -176,7 +198,9 @@ def init_db():
                 sentiment       REAL DEFAULT 0,
                 sentiment_label TEXT,
                 posted_at       TEXT,
-                recorded_at     TEXT
+                recorded_at     TEXT,
+                platform        TEXT DEFAULT 'tiktok',
+                PRIMARY KEY (id, platform)
             );
 
             CREATE TABLE IF NOT EXISTS sync_log (
@@ -186,30 +210,44 @@ def init_db():
                 videos_fetched  INTEGER DEFAULT 0,
                 comments_fetched INTEGER DEFAULT 0,
                 status          TEXT,
-                message         TEXT
+                message         TEXT,
+                platform        TEXT DEFAULT 'tiktok'
             );
         """)
 
-        # Migrate existing DBs that don't yet have the bookmarks column
-        try:
-            c.execute("ALTER TABLE video_snapshots ADD COLUMN bookmarks INTEGER DEFAULT 0")
-            conn.commit()
-        except Exception:
-            pass  # column already exists
+        # Migration: add platform and bookmarks columns to existing DBs
+        for col, table in [
+            ("bookmarks", "video_snapshots"),
+            ("platform", "video_snapshots"),
+            ("platform", "profiles"),
+            ("platform", "videos"),
+            ("platform", "comments"),
+            ("platform", "sync_log"),
+        ]:
+            try:
+                default = "'tiktok'" if col == "platform" else "0"
+                c.execute(f"ALTER TABLE {table} ADD COLUMN {col} TEXT DEFAULT {default}" if col == "platform"
+                          else f"ALTER TABLE {table} ADD COLUMN {col} INTEGER DEFAULT {default}")
+                conn.commit()
+            except Exception:
+                pass
 
     conn.commit()
     conn.close()
 
 
+# ── Upsert Functions ─────────────────────────────────────────────────────────
+
 def upsert_profile(data: dict):
+    platform = data.get("platform", "tiktok")
     conn = get_conn()
     if USE_PG:
         conn.cursor().execute("""
             INSERT INTO profiles (username, display_name, bio, followers, following,
-                                  total_videos, total_hearts, avatar_url, last_updated)
+                                  total_videos, total_hearts, avatar_url, last_updated, platform)
             VALUES (%(username)s, %(display_name)s, %(bio)s, %(followers)s, %(following)s,
-                    %(total_videos)s, %(total_hearts)s, %(avatar_url)s, %(last_updated)s)
-            ON CONFLICT(username) DO UPDATE SET
+                    %(total_videos)s, %(total_hearts)s, %(avatar_url)s, %(last_updated)s, %(platform)s)
+            ON CONFLICT(username, platform) DO UPDATE SET
                 display_name = EXCLUDED.display_name,
                 bio          = EXCLUDED.bio,
                 followers    = EXCLUDED.followers,
@@ -218,14 +256,14 @@ def upsert_profile(data: dict):
                 total_hearts = EXCLUDED.total_hearts,
                 avatar_url   = EXCLUDED.avatar_url,
                 last_updated = EXCLUDED.last_updated
-        """, data)
+        """, {**data, "platform": platform})
     else:
         conn.execute("""
             INSERT INTO profiles (username, display_name, bio, followers, following,
-                                  total_videos, total_hearts, avatar_url, last_updated)
+                                  total_videos, total_hearts, avatar_url, last_updated, platform)
             VALUES (:username, :display_name, :bio, :followers, :following,
-                    :total_videos, :total_hearts, :avatar_url, :last_updated)
-            ON CONFLICT(username) DO UPDATE SET
+                    :total_videos, :total_hearts, :avatar_url, :last_updated, :platform)
+            ON CONFLICT(username, platform) DO UPDATE SET
                 display_name = excluded.display_name,
                 bio          = excluded.bio,
                 followers    = excluded.followers,
@@ -234,23 +272,24 @@ def upsert_profile(data: dict):
                 total_hearts = excluded.total_hearts,
                 avatar_url   = excluded.avatar_url,
                 last_updated = excluded.last_updated
-        """, data)
+        """, {**data, "platform": platform})
     conn.commit()
     conn.close()
 
 
 def upsert_video(data: dict):
+    platform = data.get("platform", "tiktok")
     conn = get_conn()
     if USE_PG:
         c = conn.cursor()
         c.execute("""
             INSERT INTO videos (id, username, description, url, cover_url,
                                 views, likes, comments, shares, bookmarks,
-                                engagement_rate, music_name, duration, posted_at, recorded_at)
+                                engagement_rate, music_name, duration, posted_at, recorded_at, platform)
             VALUES (%(id)s, %(username)s, %(description)s, %(url)s, %(cover_url)s,
                     %(views)s, %(likes)s, %(comments)s, %(shares)s, %(bookmarks)s,
-                    %(engagement_rate)s, %(music_name)s, %(duration)s, %(posted_at)s, %(recorded_at)s)
-            ON CONFLICT(id) DO UPDATE SET
+                    %(engagement_rate)s, %(music_name)s, %(duration)s, %(posted_at)s, %(recorded_at)s, %(platform)s)
+            ON CONFLICT(id, platform) DO UPDATE SET
                 views           = EXCLUDED.views,
                 likes           = EXCLUDED.likes,
                 comments        = EXCLUDED.comments,
@@ -258,28 +297,28 @@ def upsert_video(data: dict):
                 bookmarks       = EXCLUDED.bookmarks,
                 engagement_rate = EXCLUDED.engagement_rate,
                 recorded_at     = EXCLUDED.recorded_at
-        """, data)
+        """, {**data, "platform": platform})
         today = datetime.utcnow().date().isoformat()
         c.execute("""
-            INSERT INTO video_snapshots (video_id, username, date, views, likes, comments, shares, bookmarks)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT(video_id, date) DO UPDATE SET
+            INSERT INTO video_snapshots (video_id, username, date, views, likes, comments, shares, bookmarks, platform)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT(video_id, date, platform) DO UPDATE SET
                 views     = EXCLUDED.views,
                 likes     = EXCLUDED.likes,
                 comments  = EXCLUDED.comments,
                 shares    = EXCLUDED.shares,
                 bookmarks = EXCLUDED.bookmarks
         """, (data['id'], data['username'], today,
-              data['views'], data['likes'], data['comments'], data['shares'], data['bookmarks']))
+              data['views'], data['likes'], data['comments'], data['shares'], data['bookmarks'], platform))
     else:
         conn.execute("""
             INSERT INTO videos (id, username, description, url, cover_url,
                                 views, likes, comments, shares, bookmarks,
-                                engagement_rate, music_name, duration, posted_at, recorded_at)
+                                engagement_rate, music_name, duration, posted_at, recorded_at, platform)
             VALUES (:id, :username, :description, :url, :cover_url,
                     :views, :likes, :comments, :shares, :bookmarks,
-                    :engagement_rate, :music_name, :duration, :posted_at, :recorded_at)
-            ON CONFLICT(id) DO UPDATE SET
+                    :engagement_rate, :music_name, :duration, :posted_at, :recorded_at, :platform)
+            ON CONFLICT(id, platform) DO UPDATE SET
                 views           = excluded.views,
                 likes           = excluded.likes,
                 comments        = excluded.comments,
@@ -287,150 +326,155 @@ def upsert_video(data: dict):
                 bookmarks       = excluded.bookmarks,
                 engagement_rate = excluded.engagement_rate,
                 recorded_at     = excluded.recorded_at
-        """, data)
+        """, {**data, "platform": platform})
         today = datetime.utcnow().date().isoformat()
         conn.execute("""
-            INSERT INTO video_snapshots (video_id, username, date, views, likes, comments, shares, bookmarks)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(video_id, date) DO UPDATE SET
+            INSERT INTO video_snapshots (video_id, username, date, views, likes, comments, shares, bookmarks, platform)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(video_id, date, platform) DO UPDATE SET
                 views     = excluded.views,
                 likes     = excluded.likes,
                 comments  = excluded.comments,
                 shares    = excluded.shares,
                 bookmarks = excluded.bookmarks
         """, (data['id'], data['username'], today,
-              data['views'], data['likes'], data['comments'], data['shares'], data['bookmarks']))
+              data['views'], data['likes'], data['comments'], data['shares'], data['bookmarks'], platform))
     conn.commit()
     conn.close()
 
 
 def upsert_comment(data: dict):
+    platform = data.get("platform", "tiktok")
     conn = get_conn()
     if USE_PG:
         conn.cursor().execute("""
             INSERT INTO comments
-                (id, video_id, username, text, likes, sentiment, sentiment_label, posted_at, recorded_at)
+                (id, video_id, username, text, likes, sentiment, sentiment_label, posted_at, recorded_at, platform)
             VALUES
-                (%(id)s, %(video_id)s, %(username)s, %(text)s, %(likes)s, %(sentiment)s, %(sentiment_label)s, %(posted_at)s, %(recorded_at)s)
-            ON CONFLICT(id) DO NOTHING
-        """, data)
+                (%(id)s, %(video_id)s, %(username)s, %(text)s, %(likes)s, %(sentiment)s, %(sentiment_label)s, %(posted_at)s, %(recorded_at)s, %(platform)s)
+            ON CONFLICT(id, platform) DO NOTHING
+        """, {**data, "platform": platform})
     else:
         conn.execute("""
             INSERT OR IGNORE INTO comments
-                (id, video_id, username, text, likes, sentiment, sentiment_label, posted_at, recorded_at)
+                (id, video_id, username, text, likes, sentiment, sentiment_label, posted_at, recorded_at, platform)
             VALUES
-                (:id, :video_id, :username, :text, :likes, :sentiment, :sentiment_label, :posted_at, :recorded_at)
-        """, data)
+                (:id, :video_id, :username, :text, :likes, :sentiment, :sentiment_label, :posted_at, :recorded_at, :platform)
+        """, {**data, "platform": platform})
     conn.commit()
     conn.close()
 
 
-def log_sync(username, videos_fetched, comments_fetched, status, message=""):
+def log_sync(username, videos_fetched, comments_fetched, status, message="", platform="tiktok"):
     conn = get_conn()
     if USE_PG:
         conn.cursor().execute("""
-            INSERT INTO sync_log (ran_at, username, videos_fetched, comments_fetched, status, message)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (datetime.utcnow().isoformat(), username, videos_fetched, comments_fetched, status, message))
+            INSERT INTO sync_log (ran_at, username, videos_fetched, comments_fetched, status, message, platform)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (datetime.utcnow().isoformat(), username, videos_fetched, comments_fetched, status, message, platform))
     else:
         conn.execute("""
-            INSERT INTO sync_log (ran_at, username, videos_fetched, comments_fetched, status, message)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (datetime.utcnow().isoformat(), username, videos_fetched, comments_fetched, status, message))
+            INSERT INTO sync_log (ran_at, username, videos_fetched, comments_fetched, status, message, platform)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (datetime.utcnow().isoformat(), username, videos_fetched, comments_fetched, status, message, platform))
     conn.commit()
     conn.close()
 
 
 # ── Dashboard Query Helpers ───────────────────────────────────────────────────
 
-def get_profile(username):
+def get_profile(username, platform="tiktok"):
     conn = get_conn()
     c = conn.cursor()
     p = "%s" if USE_PG else "?"
-    c.execute(f"SELECT * FROM profiles WHERE username = {p}", (username,))
+    c.execute(f"SELECT * FROM profiles WHERE username = {p} AND platform = {p}", (username, platform))
     result = _fetchone_dict(c)
     conn.close()
     return result if result else {}
 
 
-def get_recent_videos(username, limit=None):
+def get_recent_videos(username, platform="tiktok", limit=None):
     conn = get_conn()
     c = conn.cursor()
     p = "%s" if USE_PG else "?"
     if limit:
         c.execute(
-            f"SELECT * FROM videos WHERE username = {p} ORDER BY posted_at DESC LIMIT {p}",
-            (username, limit)
+            f"SELECT * FROM videos WHERE username = {p} AND platform = {p} ORDER BY posted_at DESC LIMIT {p}",
+            (username, platform, limit)
         )
     else:
         c.execute(
-            f"SELECT * FROM videos WHERE username = {p} ORDER BY posted_at DESC",
-            (username,)
+            f"SELECT * FROM videos WHERE username = {p} AND platform = {p} ORDER BY posted_at DESC",
+            (username, platform)
         )
     result = _fetchall_dict(c)
     conn.close()
     return result
 
 
-def get_top_videos(username, limit=5):
+def get_top_videos(username, platform="tiktok", limit=5):
     conn = get_conn()
     c = conn.cursor()
     p = "%s" if USE_PG else "?"
     c.execute(f"""
-        SELECT * FROM videos WHERE username = {p}
+        SELECT * FROM videos WHERE username = {p} AND platform = {p}
         ORDER BY views DESC LIMIT {p}
-    """, (username, limit))
+    """, (username, platform, limit))
     result = _fetchall_dict(c)
     conn.close()
     return result
 
 
-def get_engagement_trend(username, days=30):
+def get_engagement_trend(username, platform="tiktok", days=30):
     """Returns daily average engagement rate. days=0 means all-time."""
     conn = get_conn()
     c = conn.cursor()
     p = "%s" if USE_PG else "?"
-    date_fn = "DATE(posted_at)" if not USE_PG else "posted_at::date"
     if days and days > 0:
         since = (datetime.utcnow() - timedelta(days=days)).isoformat()
-        c.execute(f"""
-            SELECT {date_fn} as day,
-                   ROUND(AVG(engagement_rate)::numeric, 4) as avg_eng,
-                   SUM(views) as total_views,
-                   COUNT(*) as video_count
-            FROM videos
-            WHERE username = {p} AND posted_at >= {p}
-            GROUP BY day ORDER BY day ASC
-        """, (username, since)) if USE_PG else c.execute(f"""
-            SELECT DATE(posted_at) as day,
-                   ROUND(AVG(engagement_rate), 4) as avg_eng,
-                   SUM(views) as total_views,
-                   COUNT(*) as video_count
-            FROM videos
-            WHERE username = {p} AND posted_at >= {p}
-            GROUP BY day ORDER BY day ASC
-        """, (username, since))
+        if USE_PG:
+            c.execute(f"""
+                SELECT posted_at::date as day,
+                       ROUND(AVG(engagement_rate)::numeric, 4) as avg_eng,
+                       SUM(views) as total_views,
+                       COUNT(*) as video_count
+                FROM videos
+                WHERE username = {p} AND platform = {p} AND posted_at >= {p}
+                GROUP BY day ORDER BY day ASC
+            """, (username, platform, since))
+        else:
+            c.execute(f"""
+                SELECT DATE(posted_at) as day,
+                       ROUND(AVG(engagement_rate), 4) as avg_eng,
+                       SUM(views) as total_views,
+                       COUNT(*) as video_count
+                FROM videos
+                WHERE username = {p} AND platform = {p} AND posted_at >= {p}
+                GROUP BY day ORDER BY day ASC
+            """, (username, platform, since))
     else:
-        c.execute(f"""
-            SELECT {date_fn} as day,
-                   ROUND(AVG(engagement_rate)::numeric, 4) as avg_eng,
-                   SUM(views) as total_views,
-                   COUNT(*) as video_count
-            FROM videos
-            WHERE username = {p}
-            GROUP BY day ORDER BY day ASC
-        """, (username,)) if USE_PG else c.execute(f"""
-            SELECT DATE(posted_at) as day,
-                   ROUND(AVG(engagement_rate), 4) as avg_eng,
-                   SUM(views) as total_views,
-                   COUNT(*) as video_count
-            FROM videos
-            WHERE username = {p}
-            GROUP BY day ORDER BY day ASC
-        """, (username,))
+        if USE_PG:
+            c.execute(f"""
+                SELECT posted_at::date as day,
+                       ROUND(AVG(engagement_rate)::numeric, 4) as avg_eng,
+                       SUM(views) as total_views,
+                       COUNT(*) as video_count
+                FROM videos
+                WHERE username = {p} AND platform = {p}
+                GROUP BY day ORDER BY day ASC
+            """, (username, platform))
+        else:
+            c.execute(f"""
+                SELECT DATE(posted_at) as day,
+                       ROUND(AVG(engagement_rate), 4) as avg_eng,
+                       SUM(views) as total_views,
+                       COUNT(*) as video_count
+                FROM videos
+                WHERE username = {p} AND platform = {p}
+                GROUP BY day ORDER BY day ASC
+            """, (username, platform))
     result = _fetchall_dict(c)
     conn.close()
-    # Convert date objects to strings for JSON serialization
     for r in result:
         if r.get('day') and not isinstance(r['day'], str):
             r['day'] = str(r['day'])
@@ -439,7 +483,7 @@ def get_engagement_trend(username, days=30):
     return result
 
 
-def get_sentiment_summary(username):
+def get_sentiment_summary(username, platform="tiktok"):
     """Returns count of positive/neutral/negative comments."""
     conn = get_conn()
     c = conn.cursor()
@@ -447,9 +491,9 @@ def get_sentiment_summary(username):
     c.execute(f"""
         SELECT sentiment_label, COUNT(*) as count
         FROM comments
-        WHERE video_id IN (SELECT id FROM videos WHERE username = {p})
+        WHERE platform = {p} AND video_id IN (SELECT id FROM videos WHERE username = {p} AND platform = {p})
         GROUP BY sentiment_label
-    """, (username,))
+    """, (platform, username, platform))
     rows = _fetchall_dict(c)
     conn.close()
     result = {"positive": 0, "neutral": 0, "negative": 0}
@@ -459,7 +503,7 @@ def get_sentiment_summary(username):
     return result
 
 
-def get_kpis(username, days=30):
+def get_kpis(username, platform="tiktok", days=30):
     """Returns aggregate KPI metrics. days=0 means all-time."""
     conn = get_conn()
     c = conn.cursor()
@@ -478,8 +522,8 @@ def get_kpis(username, days=30):
                 SUM(shares)          as total_shares,
                 {round_fn}
             FROM videos
-            WHERE username = {p} AND posted_at >= {p}
-        """, (username, since))
+            WHERE username = {p} AND platform = {p} AND posted_at >= {p}
+        """, (username, platform, since))
     else:
         c.execute(f"""
             SELECT
@@ -490,19 +534,18 @@ def get_kpis(username, days=30):
                 SUM(shares)          as total_shares,
                 {round_fn}
             FROM videos
-            WHERE username = {p}
-        """, (username,))
+            WHERE username = {p} AND platform = {p}
+        """, (username, platform))
     result = _fetchone_dict(c)
     conn.close()
     if result:
-        # Convert Decimal types to float for JSON serialization
         for key in ('avg_views', 'avg_engagement_pct'):
             if result.get(key) and hasattr(result[key], '__float__'):
                 result[key] = float(result[key])
     return result if result else {}
 
 
-def get_leaderboard_kpis(username, days=30):
+def get_leaderboard_kpis(username, platform="tiktok", days=30):
     """Returns full KPI row including saves/bookmarks for leaderboard."""
     conn = get_conn()
     c = conn.cursor()
@@ -522,8 +565,8 @@ def get_leaderboard_kpis(username, days=30):
                 SUM(bookmarks)                     as total_saves,
                 {round_fn}
             FROM videos
-            WHERE username = {p} AND posted_at >= {p}
-        """, (username, since))
+            WHERE username = {p} AND platform = {p} AND posted_at >= {p}
+        """, (username, platform, since))
     else:
         c.execute(f"""
             SELECT
@@ -535,8 +578,8 @@ def get_leaderboard_kpis(username, days=30):
                 SUM(bookmarks)                     as total_saves,
                 {round_fn}
             FROM videos
-            WHERE username = {p}
-        """, (username,))
+            WHERE username = {p} AND platform = {p}
+        """, (username, platform))
     result = _fetchone_dict(c)
     conn.close()
     if result:
@@ -558,11 +601,8 @@ def get_recent_syncs(limit=10):
     return result
 
 
-def get_daily_views_gained(username, days=30):
-    """
-    Returns views gained per day using snapshot deltas.
-    days=0 means all-time. Falls back to empty list if no snapshot data yet.
-    """
+def get_daily_views_gained(username, platform="tiktok", days=30):
+    """Returns views gained per day using snapshot deltas."""
     conn = get_conn()
     c = conn.cursor()
     p = "%s" if USE_PG else "?"
@@ -575,11 +615,11 @@ def get_daily_views_gained(username, days=30):
                 SELECT date as day,
                        views - LAG(views) OVER (PARTITION BY video_id ORDER BY date) as views_gained
                 FROM video_snapshots
-                WHERE username = {p} AND date >= {p}
+                WHERE username = {p} AND platform = {p} AND date >= {p}
             ) t
             WHERE day IS NOT NULL
             GROUP BY day ORDER BY day ASC
-        """, (username, since))
+        """, (username, platform, since))
     else:
         c.execute(f"""
             SELECT day,
@@ -588,50 +628,54 @@ def get_daily_views_gained(username, days=30):
                 SELECT date as day,
                        views - LAG(views) OVER (PARTITION BY video_id ORDER BY date) as views_gained
                 FROM video_snapshots
-                WHERE username = {p}
+                WHERE username = {p} AND platform = {p}
             ) t
             WHERE day IS NOT NULL
             GROUP BY day ORDER BY day ASC
-        """, (username,))
+        """, (username, platform))
     result = _fetchall_dict(c)
     conn.close()
     return result
 
 
-def get_views_trend(username, days=30):
+def get_views_trend(username, platform="tiktok", days=30):
     """Returns daily total views for sparkline. days=0 means all-time."""
     conn = get_conn()
     c = conn.cursor()
     p = "%s" if USE_PG else "?"
-    date_fn = "DATE(posted_at)" if not USE_PG else "posted_at::date"
     if days and days > 0:
         since = (datetime.utcnow() - timedelta(days=days)).isoformat()
-        c.execute(f"""
-            SELECT {date_fn} as day, SUM(views) as total_views
-            FROM videos
-            WHERE username = {p} AND posted_at >= {p}
-            GROUP BY day ORDER BY day ASC
-        """, (username, since)) if USE_PG else c.execute(f"""
-            SELECT DATE(posted_at) as day, SUM(views) as total_views
-            FROM videos
-            WHERE username = {p} AND posted_at >= {p}
-            GROUP BY day ORDER BY day ASC
-        """, (username, since))
+        if USE_PG:
+            c.execute(f"""
+                SELECT posted_at::date as day, SUM(views) as total_views
+                FROM videos
+                WHERE username = {p} AND platform = {p} AND posted_at >= {p}
+                GROUP BY day ORDER BY day ASC
+            """, (username, platform, since))
+        else:
+            c.execute(f"""
+                SELECT DATE(posted_at) as day, SUM(views) as total_views
+                FROM videos
+                WHERE username = {p} AND platform = {p} AND posted_at >= {p}
+                GROUP BY day ORDER BY day ASC
+            """, (username, platform, since))
     else:
-        c.execute(f"""
-            SELECT {date_fn} as day, SUM(views) as total_views
-            FROM videos
-            WHERE username = {p}
-            GROUP BY day ORDER BY day ASC
-        """, (username,)) if USE_PG else c.execute(f"""
-            SELECT DATE(posted_at) as day, SUM(views) as total_views
-            FROM videos
-            WHERE username = {p}
-            GROUP BY day ORDER BY day ASC
-        """, (username,))
+        if USE_PG:
+            c.execute(f"""
+                SELECT posted_at::date as day, SUM(views) as total_views
+                FROM videos
+                WHERE username = {p} AND platform = {p}
+                GROUP BY day ORDER BY day ASC
+            """, (username, platform))
+        else:
+            c.execute(f"""
+                SELECT DATE(posted_at) as day, SUM(views) as total_views
+                FROM videos
+                WHERE username = {p} AND platform = {p}
+                GROUP BY day ORDER BY day ASC
+            """, (username, platform))
     result = _fetchall_dict(c)
     conn.close()
-    # Convert date objects to strings for JSON serialization
     for r in result:
         if r.get('day') and not isinstance(r['day'], str):
             r['day'] = str(r['day'])
